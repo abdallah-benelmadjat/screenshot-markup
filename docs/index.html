@@ -1,0 +1,570 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screenshot Markup</title>
+<style>
+/* Layout: one working screen. Toolbar on top, image stage on the left, annotation list on the right (stacks on phones). */
+:root {
+  --bg: #eceff3;
+  --panel: #ffffff;
+  --fg: #18202a;
+  --muted: #5a6573;
+  --line: #d3d9e0;
+  --accent: #1d5fc4;
+  --accent-fg: #ffffff;
+  --stage: #dfe3e9;
+  --danger: #b4231b;
+  --ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12161b; --panel: #1a2028; --fg: #e5eaf0; --muted: #96a2af; --line: #2c343e;
+    --accent: #6ea4ff; --accent-fg: #0d1520; --stage: #0c0f13; --danger: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12161b; --panel: #1a2028; --fg: #e5eaf0; --muted: #96a2af; --line: #2c343e;
+  --accent: #6ea4ff; --accent-fg: #0d1520; --stage: #0c0f13; --danger: #ff8a80; color-scheme: dark;
+}
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font: 14px/1.45 var(--ui);
+  display: flex; flex-direction: column;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px; gap: 12px; box-sizing: border-box;
+}
+*, *::before, *::after { box-sizing: inherit; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bar h1 { font-size: 15px; font-weight: 600; margin: 0 8px 0 0; letter-spacing: .01em; }
+.spacer { flex: 1; }
+.btn {
+  border: 1px solid var(--line); background: var(--panel); border-radius: 6px;
+  padding: 6px 12px; cursor: pointer; font-weight: 500; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.chip {
+  font: 500 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .06em;
+  padding: 5px 7px; border-radius: 4px; border: 1px solid var(--line); color: var(--muted);
+}
+.size { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+.size input { width: 90px; accent-color: var(--accent); }
+
+.work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 12px; }
+.stage {
+  min-width: 0; min-height: 0; overflow: auto; border-radius: 8px; background: var(--stage);
+  display: flex; align-items: flex-start; justify-content: center; padding: 16px; position: relative;
+}
+.stage.drop { outline: 2px dashed var(--accent); outline-offset: -8px; }
+canvas { max-width: 100%; height: auto; display: block; cursor: crosshair; touch-action: none; box-shadow: 0 1px 4px rgba(0,0,0,.18); }
+
+.side { min-width: 0; display: flex; flex-direction: column; gap: 10px; overflow: auto; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+.hint kbd { font: 500 11px var(--mono); border: 1px solid var(--line); border-radius: 3px; padding: 1px 4px; }
+.empty { border: 1px dashed var(--line); border-radius: 8px; padding: 14px; color: var(--muted); font-size: 13px; }
+.note {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px;
+  display: grid; gap: 8px;
+}
+.note.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.note-head { display: flex; align-items: center; gap: 8px; }
+.num { font: 500 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.note textarea {
+  width: 100%; resize: vertical; min-height: 40px; border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 8px; background: var(--bg);
+}
+.row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sw { width: 22px; height: 22px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.sw.on { border-color: var(--fg); }
+.row select { border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; background: var(--panel); }
+.del { margin-left: auto; border: none; background: none; color: var(--danger); cursor: pointer; font-size: 13px; padding: 2px 4px; }
+
+.overlay { position: fixed; inset: 0; background: rgba(8,12,18,.55); display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 20; }
+.dialog {
+  background: var(--panel); border-radius: 10px; padding: 16px; width: min(960px, 100%);
+  max-height: 100%; display: flex; flex-direction: column; gap: 12px;
+}
+.dialog h2 { font-size: 15px; margin: 0; }
+.dialog .preview { overflow: auto; min-height: 0; flex: 1; background: var(--stage); border-radius: 6px; padding: 8px; }
+.dialog img { display: block; margin: 0 auto; }
+.msg { color: var(--muted); font-size: 13px; margin: 0; min-height: 1.4em; }
+
+@media (max-width: 860px) {
+  body { height: auto; }
+  .work { grid-template-columns: minmax(0, 1fr); }
+  .stage { max-height: 70vh; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+<style>body { margin: 0; } img { max-width: 100%; } [hidden] { display: none !important; }</style>
+</head>
+<body>
+
+<header class="bar">
+  <h1>Screenshot Markup</h1>
+  <span class="chip" id="sampleChip">Sample image</span>
+  <span class="spacer"></span>
+  <label class="size" for="sizeRange">Size <input type="range" id="sizeRange" min="0.75" max="2.5" step="0.25" value="1"></label>
+  <input type="file" id="fileInput" accept="image/*" hidden>
+  <button class="btn" id="openBtn" type="button">Open image</button>
+  <button class="btn" id="undoBtn" type="button" disabled>Undo</button>
+  <button class="btn" id="clearBtn" type="button">Clear boxes</button>
+  <button class="btn primary" id="exportBtn" type="button">Export PNG</button>
+</header>
+
+<main class="work">
+  <section class="stage" id="stage" aria-label="Image with annotations">
+    <canvas id="cv" width="1200" height="720"></canvas>
+  </section>
+  <aside class="side">
+    <p class="hint">Drag on the image to draw a box. Drag a box or its label to move it, or a corner to resize. Paste with <kbd>Ctrl</kbd>+<kbd>V</kbd> or drop a file to load your own screenshot. Hold <kbd>Shift</kbd> to draw inside an existing box.</p>
+    <div id="list"></div>
+  </aside>
+</main>
+
+<div class="overlay" id="exportOverlay" hidden>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+    <div class="bar">
+      <h2 id="exportTitle">Annotated image</h2>
+      <span class="spacer"></span>
+      <button class="btn primary" id="saveBtn" type="button">Save PNG…</button>
+      <button class="btn" id="copyBtn" type="button">Copy image</button>
+      <button class="btn" id="closeBtn" type="button">Close</button>
+    </div>
+    <p class="msg" id="exportMsg">Save it as a PNG, or copy it and paste straight into GitHub.</p>
+    <div class="preview"><img id="exportImg" alt="Annotated screenshot"></div>
+  </div>
+</div>
+
+<script>
+const COLORS = { red: '#e3001b', blue: '#0b6bcb', green: '#118a3a', amber: '#c27400' };
+const POSITIONS = ['above', 'below', 'left', 'right'];
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const stage = document.getElementById('stage');
+const list = document.getElementById('list');
+const undoBtn = document.getElementById('undoBtn');
+
+let source = null;           // image or canvas being annotated
+let notes = [];              // { id, x, y, w, h, label, color, pos, lx, ly } in image pixels
+let selected = null;
+let history = [];
+let nextId = 1;
+let lastColor = 'red';
+let sizeFactor = 1;
+let labelRects = new Map();  // id -> rect of the drawn label, for hit testing
+let drag = null;
+
+const scale = () => Math.max(1, cv.width / 1600) * sizeFactor;
+const find = id => notes.find(n => n.id === id);
+
+function snapshot() {
+  history.push(JSON.stringify(notes));
+  if (history.length > 100) history.shift();
+  undoBtn.disabled = false;
+}
+function undo() {
+  if (!history.length) return;
+  notes = JSON.parse(history.pop());
+  if (selected && !find(selected)) selected = null;
+  undoBtn.disabled = !history.length;
+  render(); renderList();
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function wrapLines(c, text, maxW) {
+  const out = [];
+  for (const para of text.split('\n')) {
+    let line = '';
+    for (const word of para.split(' ')) {
+      const test = line ? line + ' ' + word : word;
+      if (line && c.measureText(test).width > maxW) { out.push(line); line = word; }
+      else line = test;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+// Same geometry as the Playwright highlight helper: 3px border, 4px pad, label pill above/below/left/right, clamped on screen.
+function layoutLabel(c, n, s) {
+  const pad = 4 * s, W = cv.width, H = cv.height;
+  c.font = `600 ${13 * s}px Arial, sans-serif`;
+  const maxText = Math.min(560 * s, W - 16 * s) - 16 * s;
+  const lines = wrapLines(c, n.label, maxText);
+  const lh = 13 * s * 1.3;
+  const tw = Math.ceil(Math.max(...lines.map(l => c.measureText(l).width))) + 16 * s;
+  const th = Math.ceil(lines.length * lh) + 8 * s;
+  let left = n.x - pad, top = n.y - pad - th - 4 * s;
+  if (n.pos === 'below') top = n.y + n.h + pad + 4 * s;
+  if (n.pos === 'left') { left = n.x - pad - tw - 8 * s; top = n.y + n.h / 2 - th / 2; }
+  if (n.pos === 'right') { left = n.x + n.w + pad + 8 * s; top = n.y + n.h / 2 - th / 2; }
+  if (n.lx != null) { left = n.lx; top = n.ly; }
+  left = Math.max(8 * s, Math.min(left, W - tw - 8 * s));
+  top = Math.max(8 * s, Math.min(top, H - th - 8 * s));
+  return { x: left, y: top, w: tw, h: th, lines, lh };
+}
+
+function draw(c, forExport) {
+  const s = scale(), pad = 4 * s;
+  c.clearRect(0, 0, cv.width, cv.height);
+  if (source) c.drawImage(source, 0, 0);
+  for (const n of notes) {
+    const col = COLORS[n.color];
+    roundRect(c, n.x - pad + 1.5 * s, n.y - pad + 1.5 * s, n.w + pad * 2 - 3 * s, n.h + pad * 2 - 3 * s, 6 * s);
+    c.fillStyle = col + '14'; c.fill();
+    c.lineWidth = 3 * s; c.strokeStyle = col; c.stroke();
+  }
+  if (!forExport) labelRects.clear();
+  for (const n of notes) {
+    if (!n.label.trim()) continue;
+    const L = layoutLabel(c, n, s);
+    if (!forExport) labelRects.set(n.id, L);
+    c.save();
+    c.shadowColor = 'rgba(0,0,0,.3)'; c.shadowBlur = 6 * s; c.shadowOffsetY = 2 * s;
+    roundRect(c, L.x, L.y, L.w, L.h, 4 * s);
+    c.fillStyle = COLORS[n.color]; c.fill();
+    c.restore();
+    c.fillStyle = '#fff'; c.textBaseline = 'middle';
+    L.lines.forEach((line, i) => c.fillText(line, L.x + 8 * s, L.y + 4 * s + L.lh * (i + 0.5)));
+  }
+  if (forExport || !selected) return;
+  const n = find(selected);
+  if (!n) return;
+  const k = handleSize();
+  c.save();
+  c.setLineDash([6 * k / 5, 4 * k / 5]); c.lineWidth = Math.max(1, k / 5); c.strokeStyle = '#111';
+  c.strokeRect(n.x - pad - 3 * s, n.y - pad - 3 * s, n.w + pad * 2 + 6 * s, n.h + pad * 2 + 6 * s);
+  c.setLineDash([]);
+  for (const [hx, hy] of corners(n)) {
+    c.fillStyle = '#fff'; c.strokeStyle = '#111';
+    c.fillRect(hx - k / 2, hy - k / 2, k, k); c.strokeRect(hx - k / 2, hy - k / 2, k, k);
+  }
+  c.restore();
+}
+const render = () => draw(ctx, false);
+
+function handleSize() { return 10 * cv.width / Math.max(1, cv.getBoundingClientRect().width); }
+function corners(n) { return [[n.x, n.y], [n.x + n.w, n.y], [n.x, n.y + n.h], [n.x + n.w, n.y + n.h]]; }
+
+function toImage(e) {
+  const r = cv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) * cv.width / r.width, y: (e.clientY - r.top) * cv.height / r.height };
+}
+const inside = (p, x, y, w, h) => p.x >= x && p.x <= x + w && p.y >= y && p.y <= y + h;
+
+function hitTest(p, forceNew) {
+  const k = handleSize();
+  if (selected) {
+    const n = find(selected);
+    const i = n ? corners(n).findIndex(([hx, hy]) => Math.abs(p.x - hx) <= k && Math.abs(p.y - hy) <= k) : -1;
+    if (i >= 0) return { type: 'resize', n, corner: i };
+  }
+  if (forceNew) return null;
+  for (let i = notes.length - 1; i >= 0; i--) {
+    const L = labelRects.get(notes[i].id);
+    if (L && inside(p, L.x, L.y, L.w, L.h)) return { type: 'label', n: notes[i], L };
+  }
+  const pad = 4 * scale();
+  for (let i = notes.length - 1; i >= 0; i--) {
+    const n = notes[i];
+    if (inside(p, n.x - pad, n.y - pad, n.w + pad * 2, n.h + pad * 2)) return { type: 'move', n };
+  }
+  return null;
+}
+
+cv.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  cv.setPointerCapture(e.pointerId);
+  const p = toImage(e);
+  const hit = hitTest(p, e.shiftKey);
+  const before = JSON.stringify(notes);
+  if (hit) {
+    selected = hit.n.id;
+    const n = hit.n;
+    if (hit.type === 'resize') {
+      const fixed = corners(n)[3 - hit.corner];
+      drag = { type: 'resize', id: n.id, fx: fixed[0], fy: fixed[1], before };
+    } else if (hit.type === 'label') {
+      drag = { type: 'label', id: n.id, dx: p.x - hit.L.x, dy: p.y - hit.L.y, before };
+    } else {
+      drag = { type: 'move', id: n.id, dx: p.x - n.x, dy: p.y - n.y, before };
+    }
+  } else {
+    selected = null;
+    drag = { type: 'create', sx: p.x, sy: p.y, id: null, before };
+  }
+  render(); renderList();
+});
+
+cv.addEventListener('pointermove', e => {
+  if (!drag) {
+    const hit = hitTest(toImage(e), e.shiftKey);
+    cv.style.cursor = !hit ? 'crosshair' : hit.type === 'resize' ? 'nwse-resize' : 'move';
+    return;
+  }
+  const p = toImage(e);
+  const clampX = v => Math.max(0, Math.min(cv.width, v)), clampY = v => Math.max(0, Math.min(cv.height, v));
+  if (drag.type === 'create') {
+    const w = Math.abs(p.x - drag.sx), h = Math.abs(p.y - drag.sy);
+    if (!drag.id && (w > 6 || h > 6)) {
+      const n = { id: nextId++, x: 0, y: 0, w: 0, h: 0, label: '', color: lastColor, pos: 'above', lx: null, ly: null };
+      notes.push(n); drag.id = n.id; selected = n.id;
+    }
+    if (drag.id) {
+      const n = find(drag.id);
+      n.x = Math.min(drag.sx, clampX(p.x)); n.y = Math.min(drag.sy, clampY(p.y));
+      n.w = Math.abs(clampX(p.x) - drag.sx); n.h = Math.abs(clampY(p.y) - drag.sy);
+    }
+  } else if (drag.type === 'move') {
+    const n = find(drag.id);
+    const nx = Math.max(0, Math.min(cv.width - n.w, p.x - drag.dx)), ny = Math.max(0, Math.min(cv.height - n.h, p.y - drag.dy));
+    if (n.lx != null) { n.lx += nx - n.x; n.ly += ny - n.y; }
+    n.x = nx; n.y = ny;
+  } else if (drag.type === 'resize') {
+    const n = find(drag.id), x = clampX(p.x), y = clampY(p.y);
+    n.x = Math.min(drag.fx, x); n.y = Math.min(drag.fy, y);
+    n.w = Math.max(4, Math.abs(x - drag.fx)); n.h = Math.max(4, Math.abs(y - drag.fy));
+  } else if (drag.type === 'label') {
+    const n = find(drag.id);
+    n.lx = p.x - drag.dx; n.ly = p.y - drag.dy;
+  }
+  render();
+});
+
+function endDrag() {
+  if (!drag) return;
+  const created = drag.type === 'create' && drag.id;
+  if (JSON.stringify(notes) !== drag.before) {
+    history.push(drag.before); undoBtn.disabled = false;
+  }
+  drag = null;
+  render(); renderList();
+  if (created) document.getElementById(`label-${selected}`)?.focus();
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+
+function renderList() {
+  if (!notes.length) {
+    list.innerHTML = '<div class="empty">No boxes yet. Drag across the image to add one.</div>';
+    return;
+  }
+  const active = document.activeElement?.id;
+  list.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.display = 'grid'; wrap.style.gap = '8px';
+  notes.forEach((n, i) => {
+    const el = document.createElement('div');
+    el.className = 'note' + (n.id === selected ? ' on' : '');
+    el.innerHTML = `
+      <div class="note-head"><span class="num">Box ${String(i + 1).padStart(2, '0')}</span>
+        <button class="del" type="button" data-act="del">Remove</button></div>
+      <textarea id="label-${n.id}" rows="2" placeholder="Label (leave empty for a plain box)"></textarea>
+      <div class="row">
+        ${Object.entries(COLORS).map(([k, v]) => `<button type="button" class="sw${n.color === k ? ' on' : ''}" data-color="${k}" style="background:${v}" aria-label="${k}"></button>`).join('')}
+        <select id="pos-${n.id}" aria-label="Label position">
+          ${POSITIONS.map(p => `<option value="${p}"${n.lx == null && n.pos === p ? ' selected' : ''}>Label ${p}</option>`).join('')}
+          ${n.lx != null ? '<option value="custom" selected>Label moved</option>' : ''}
+        </select>
+      </div>`;
+    const ta = el.querySelector('textarea');
+    ta.value = n.label;
+    ta.addEventListener('focus', () => { if (selected !== n.id) { selected = n.id; render(); markSelected(); } snapshot(); });
+    ta.addEventListener('input', () => { n.label = ta.value; render(); });
+    el.querySelector('select').addEventListener('change', ev => {
+      if (ev.target.value === 'custom') return;
+      snapshot(); n.pos = ev.target.value; n.lx = n.ly = null; render(); renderList();
+    });
+    el.querySelectorAll('.sw').forEach(b => b.addEventListener('click', () => {
+      snapshot(); n.color = b.dataset.color; lastColor = n.color; selected = n.id; render(); renderList();
+    }));
+    el.querySelector('[data-act="del"]').addEventListener('click', () => removeNote(n.id));
+    el.addEventListener('pointerdown', ev => {
+      if (ev.target.closest('textarea, select, button')) return;
+      selected = n.id; render(); markSelected();
+    });
+    wrap.appendChild(el);
+  });
+  list.appendChild(wrap);
+  if (active) document.getElementById(active)?.focus();
+}
+function markSelected() {
+  list.querySelectorAll('.note').forEach((el, i) => el.classList.toggle('on', notes[i]?.id === selected));
+}
+function removeNote(id) {
+  snapshot();
+  notes = notes.filter(n => n.id !== id);
+  if (selected === id) selected = null;
+  render(); renderList();
+}
+
+document.addEventListener('keydown', e => {
+  const typing = e.target.closest?.('textarea, input, select');
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+  if (typing) return;
+  if ((e.key === 'Delete' || e.key === 'Backspace') && selected) { e.preventDefault(); removeNote(selected); }
+  if (e.key === 'Escape') { selected = null; render(); markSelected(); }
+});
+
+function loadImage(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const im = new Image();
+  im.onload = () => {
+    source = im;
+    cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+    notes = []; history = []; selected = null; undoBtn.disabled = true;
+    document.getElementById('sampleChip').hidden = true;
+    render(); renderList();
+  };
+  im.onerror = () => alertMsg('That file could not be read as an image. Try a PNG or JPG.');
+  im.src = url;
+}
+function alertMsg(text) { const h = document.querySelector('.hint'); h.textContent = text; }
+
+document.getElementById('openBtn').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e => loadImage(e.target.files[0]));
+document.addEventListener('paste', e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) { e.preventDefault(); loadImage(item.getAsFile()); }
+});
+stage.addEventListener('dragover', e => { e.preventDefault(); stage.classList.add('drop'); });
+stage.addEventListener('dragleave', () => stage.classList.remove('drop'));
+stage.addEventListener('drop', e => { e.preventDefault(); stage.classList.remove('drop'); loadImage(e.dataTransfer.files[0]); });
+undoBtn.addEventListener('click', undo);
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (!notes.length) return;
+  snapshot(); notes = []; selected = null; render(); renderList();
+});
+document.getElementById('sizeRange').addEventListener('input', e => { sizeFactor = Number(e.target.value); render(); });
+
+// Export
+const overlay = document.getElementById('exportOverlay');
+const exportMsg = document.getElementById('exportMsg');
+let exportBlob = null, exportUrl = null;
+document.getElementById('exportBtn').addEventListener('click', () => {
+  const out = document.createElement('canvas');
+  out.width = cv.width; out.height = cv.height;
+  const keep = labelRects; labelRects = new Map(keep);
+  draw(out.getContext('2d'), true);
+  labelRects = keep;
+  out.toBlob(blob => {
+    exportBlob = blob;
+    if (exportUrl) URL.revokeObjectURL(exportUrl);
+    exportUrl = URL.createObjectURL(blob);
+    const img = document.getElementById('exportImg');
+    img.src = exportUrl;
+    img.style.maxWidth = '100%';
+    exportMsg.textContent = 'Save it as a PNG, or copy it and paste straight into GitHub.';
+    overlay.hidden = false;
+    document.getElementById('copyBtn').focus();
+  }, 'image/png');
+});
+document.getElementById('copyBtn').addEventListener('click', () => {
+  if (!exportBlob || !window.ClipboardItem || !navigator.clipboard?.write) {
+    exportMsg.textContent = 'Copying images is blocked here. Right-click the image and choose Copy image or Save image as.';
+    return;
+  }
+  navigator.clipboard.write([new ClipboardItem({ 'image/png': exportBlob })])
+    .then(() => { exportMsg.textContent = 'Copied. Paste it straight into a GitHub comment.'; })
+    .catch(() => { exportMsg.textContent = 'Copying images is blocked here. Right-click the image and choose Copy image or Save image as.'; });
+});
+document.getElementById('saveBtn').addEventListener('click', async () => {
+  if (!exportBlob) return;
+  try {
+    if (window.showSaveFilePicker) {
+      const handle = await window.showSaveFilePicker({ suggestedName: 'annotated.png', types: [{ description: 'PNG image', accept: { 'image/png': ['.png'] } }] });
+      const w = await handle.createWritable();
+      await w.write(exportBlob); await w.close();
+      exportMsg.textContent = 'Saved ' + handle.name + '.';
+    } else {
+      const a = document.createElement('a');
+      a.href = exportUrl; a.download = 'annotated.png'; a.click();
+      exportMsg.textContent = 'Saved to your Downloads folder.';
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') exportMsg.textContent = 'Could not save the file: ' + err.message;
+  }
+});
+const closeExport = () => { overlay.hidden = true; };
+document.getElementById('closeBtn').addEventListener('click', closeExport);
+overlay.addEventListener('click', e => { if (e.target === overlay) closeExport(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.hidden) closeExport(); });
+
+// Sample: a generic settings page so the tool opens in a working state.
+function makeSample() {
+  const c = document.createElement('canvas');
+  c.width = 1200; c.height = 720;
+  const g = c.getContext('2d');
+  const text = (t, x, y, font, color) => { g.font = font; g.fillStyle = color; g.fillText(t, x, y); };
+  const card = (x, y, w, h) => { g.fillStyle = '#fff'; g.fillRect(x, y, w, h); g.strokeStyle = '#d6dbe1'; g.strokeRect(x + .5, y + .5, w, h); };
+  g.fillStyle = '#f5f6f8'; g.fillRect(0, 0, 1200, 720);
+  g.fillStyle = '#27313d'; g.fillRect(0, 0, 1200, 56);
+  text('Workspace Settings', 24, 35, '600 18px Arial', '#fff');
+  ['General', 'Members', 'Billing'].forEach((t, i) => text(t, 640 + i * 130, 35, '14px Arial', i === 0 ? '#fff' : '#aab6c3'));
+  g.fillStyle = '#4f9bff'; g.fillRect(636, 52, 64, 4);
+
+  card(24, 80, 700, 600);
+  text('Profile', 48, 118, '600 16px Arial', '#1b2733');
+  const field = (y, label, value) => {
+    text(label, 48, y + 22, '14px Arial', '#1b2733');
+    g.fillStyle = '#fff'; g.fillRect(260, y, 360, 34); g.strokeStyle = '#b9c1ca'; g.strokeRect(260.5, y + .5, 360, 34);
+    text(value, 272, y + 22, '14px Arial', '#1b2733');
+  };
+  field(170, 'Display name', 'Sam Rivera');
+  field(232, 'Email', 'sam.rivera@example.com');
+  field(294, 'Time zone', 'UTC−05:00 Central Time');
+  g.fillStyle = '#2f6fd6'; g.fillRect(48, 364, 16, 16);
+  g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(51, 372); g.lineTo(55, 376); g.lineTo(61, 368); g.stroke(); g.lineWidth = 1;
+  text('Email me when someone comments on my work', 74, 378, '14px Arial', '#1b2733');
+  g.strokeStyle = '#b9c1ca'; g.strokeRect(48.5, 404.5, 16, 16);
+  text('Send a weekly summary', 74, 418, '14px Arial', '#1b2733');
+  g.fillStyle = '#2f6fd6'; g.fillRect(48, 460, 150, 40);
+  text('Save changes', 78, 485, '600 14px Arial', '#fff');
+  text('Cancel', 222, 485, '14px Arial', '#5d6b78');
+
+  card(756, 80, 420, 600);
+  text('Plan usage', 780, 118, '600 16px Arial', '#1b2733');
+  const meter = (y, label, value, frac, color) => {
+    text(label, 780, y, '14px Arial', '#5d6b78');
+    text(value, 1150 - g.measureText(value).width, y, '600 14px Arial', '#1b2733');
+    g.fillStyle = '#e6eaef'; g.fillRect(780, y + 12, 370, 10);
+    g.fillStyle = color; g.fillRect(780, y + 12, 370 * frac, 10);
+  };
+  g.font = '600 14px Arial';
+  meter(160, 'Storage', '7.2 of 10 GB', 0.72, '#e08a00');
+  meter(262, 'Members', '8 of 10 seats', 0.8, '#2f6fd6');
+  text('Next invoice', 780, 330, '14px Arial', '#5d6b78');
+  text('Nov 1  ·  $24.00', 780, 354, '600 14px Arial', '#1b2733');
+  return c;
+}
+
+source = makeSample();
+notes = [
+  { id: nextId++, x: 48, y: 168, w: 572, h: 100, label: 'Name and email show on every comment', color: 'red', pos: 'above', lx: null, ly: null },
+  { id: nextId++, x: 776, y: 142, w: 378, h: 46, label: 'Storage is at 72%, close to the limit', color: 'blue', pos: 'below', lx: null, ly: null }
+];
+render(); renderList();
+addEventListener('resize', render);
+</script>
+
+</body>
+</html>
